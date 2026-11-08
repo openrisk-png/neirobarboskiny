@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Нейросеть Барбоскины (Бесконечная трансляция)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Rubik:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0d0d0d;
+            --bg-secondary: #141414;
+            --bg-tertiary: #1a1a1a;
+            --yellow: #ffd700;
+            --yellow-dim: #ccac00;
+            --yellow-glow: rgba(255, 215, 0, 0.4);
+            --text-primary: #ffffff;
+            --text-secondary: #b3b3b3;
+            --text-muted: #666666;
+            --border: #333333;
+            --border-yellow: #ffd700;
+            --success: #00ff88;
+            --error: #ff4444;
+            --warning: #ffaa00;
+        }
+
+        body {
+            font-family: 'Rubik', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Фоновый паттерн */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                radial-gradient(ellipse at 20% 20%, rgba(255, 215, 0, 0.03) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(255, 215, 0, 0.02) 0%, transparent 50%),
+                linear-gradient(180deg, transparent 0%, var(--bg-primary) 100%);
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        /* Сетка на фоне */
+        body::after {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: 
+                linear-gradient(rgba(255, 215, 0, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 215, 0, 0.02) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .app {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            grid-template-rows: auto 1fr auto;
+            grid-template-areas:
+                "header header"
+                "main chat"
+                "footer footer";
+            min-height: 100vh;
+            gap: 0;
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            grid-area: header;
+            background: var(--bg-secondary);
+            border-bottom: 2px solid var(--border);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: var(--text-primary);
+        }
+
+        .logo-icon {
+            width: 44px;
+            height: 44px;
+            background: linear-gradient(135deg, var(--yellow) 0%, var(--yellow-dim) 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            font-size: 18px;
+            color: var(--bg-primary);
+            box-shadow: 0 0 20px var(--yellow-glow);
+        }
+
+        .logo-text {
+            display: flex;
+            flex-direction: column;
+            line-height: 1;
+        }
+
+        .logo-title {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            font-size: 20px;
+            letter-spacing: -0.5px;
+            background: linear-gradient(90deg, var(--yellow) 0%, #fff8dc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .logo-subtitle {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-top: 2px;
+        }
+
+        .header-stats {
+            display: flex;
+            align-items: center;
+            gap: 24px;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+        }
+
+        .stat-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            transition: all 0.3s ease;
+        }
+
+        .stat-dot.online {
+            background: var(--success);
+            box-shadow: 0 0 8px var(--success);
+            animation: pulse 2s infinite;
+        }
+
+        .stat-dot.loading {
+            background: var(--warning);
+            box-shadow: 0 0 8px var(--warning);
+            animation: blink 1s infinite;
+        }
+
+        .stat-dot.offline {
+            background: var(--error);
+            box-shadow: 0 0 8px var(--error);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.9); }
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .stat-value {
+            color: var(--text-primary);
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 11px;
+        }
+
+        /* ===== MAIN ===== */
+        .main {
+            grid-area: main;
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            gap: 16px;
+            overflow: hidden;
+        }
+
+        .stream-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+            min-height: 0;
+        }
+
+        .stream-header {
+            padding: 16px 20px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .stream-title {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--yellow);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stream-title::before {
+            content: '▶';
+            font-size: 10px;
+            animation: playPulse 1.5s infinite;
+        }
+
+        @keyframes playPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .stream-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .stream-status.live .status-text {
+            color: var(--success);
+        }
+
+        .stream-status.loading .status-text {
+            color: var(--warning);
+        }
+
+        .stream-status.error .status-text {
+            color: var(--error);
+        }
+
+        .youtube-player {
+            flex: 1;
+            position: relative;
+            background: #000;
+            min-height: 0;
+        }
+
+        .youtube-player iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        .stream-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-primary);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            z-index: 10;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .stream-overlay.hidden {
+            display: none;
+        }
+
+        .overlay-icon {
+            width: 80px;
+            height: 80px;
+            border: 3px solid var(--border);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-secondary);
+        }
+
+        .overlay-icon svg {
+            width: 36px;
+            height: 36px;
+            stroke: var(--yellow);
+        }
+
+        .overlay-icon.loading svg {
+            animation: spin 1.5s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .overlay-text {
+            max-width: 400px;
+        }
+
+        .overlay-title {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--yellow);
+            margin-bottom: 8px;
+        }
+
+        .overlay-message {
+            color: var(--text-secondary);
+            font-size: 15px;
+            line-height: 1.6;
+        }
+
+        .overlay-message strong {
+            color: var(--warning);
+        }
+
+        .retry-btn {
+            margin-top: 8px;
+            padding: 12px 28px;
+            background: transparent;
+            border: 2px solid var(--yellow);
+            border-radius: 8px;
+            color: var(--yellow);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .retry-btn:hover {
+            background: var(--yellow);
+            color: var(--bg-primary);
+            box-shadow: 0 0 20px var(--yellow-glow);
+        }
+
+        /* Тема стрима */
+        .topic-bar {
+            background: linear-gradient(90deg, rgba(255, 215, 0, 0.1) 0%, rgba(255, 215, 0, 0.02) 100%);
+            border: 1px solid var(--border-yellow);
+            border-radius: 12px;
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .topic-bar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--yellow);
+        }
+
+        .topic-icon {
+            width: 28px;
+            height: 28px;
+            background: rgba(255, 215, 0, 0.15);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .topic-icon svg {
+            width: 16px;
+            height: 16px;
+            stroke: var(--yellow);
+        }
+
+        .topic-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .topic-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--yellow);
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .topic-text {
+            font-size: 15px;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-weight: 500;
+        }
+
+        .topic-hint {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            white-space: nowrap;
+        }
+
+        /* Инфо-панель стрима (сворачиваемая) */
+        .info-panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .info-panel.collapsed .info-panel-content {
+            max-height: 0;
+            opacity: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            border-top: none;
+        }
+
+        .info-panel.collapsed .info-panel-chevron {
+            transform: rotate(-90deg);
+        }
+
+        .info-panel-header {
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 16px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--yellow);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s ease;
+        }
+
+        .info-panel-header:hover {
+            background: var(--bg-primary);
+        }
+
+        .info-panel-chevron {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--yellow);
+            transition: transform 0.3s ease;
+            flex-shrink: 0;
+            margin-left: 12px;
+        }
+
+        .info-panel-chevron svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .info-panel-content {
+            max-height: 2000px;
+            opacity: 1;
+            overflow: hidden;
+            transition: max-height 0.4s ease, opacity 0.2s ease, padding 0.3s ease, border-top 0.2s ease;
+            padding: 16px;
+            font-size: 13px;
+            line-height: 1.7;
+            color: var(--text-secondary);
+            border-top: 1px solid var(--border);
+        }
+
+        .info-section {
+            margin-bottom: 16px;
+        }
+
+        .info-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .info-section-title {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--yellow);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .info-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--yellow);
+            text-decoration: none;
+            font-weight: 500;
+            transition: opacity 0.2s ease;
+        }
+
+        .info-link:hover {
+            opacity: 0.8;
+        }
+
+        .info-link svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .info-text {
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .info-text strong {
+            color: var(--text-primary);
+        }
+
+        .disclaimer {
+            font-size: 11px;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        .disclaimer p {
+            margin-bottom: 6px;
+        }
+
+        .disclaimer p:last-child {
+            margin-bottom: 0;
+        }
+
+        .disclaimer strong {
+            color: var(--text-secondary);
+        }
+
+        /* ===== CHAT ===== */
+        .chat {
+            grid-area: chat;
+            background: var(--bg-secondary);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 16px 20px;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .chat-title {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--yellow);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chat-title::before {
+            content: '#';
+        }
+
+        .chat-count {
+            background: rgba(255, 215, 0, 0.15);
+            color: var(--yellow);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .chat-messages::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+
+        .chat-messages::-webkit-scrollbar-thumb:hover {
+            background: var(--yellow);
+        }
+
+        .message {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            animation: messageIn 0.3s ease;
+            max-width: 100%;
+        }
+
+        @keyframes messageIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .message.system {
+            border-left: 3px solid var(--yellow);
+            padding-left: 12px;
+            background: rgba(255, 215, 0, 0.05);
+            border-radius: 0 8px 8px 0;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .message-username {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--yellow);
+        }
+
+        .message.system .message-username {
+            color: var(--warning);
+        }
+
+        .message-time {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .message-text {
+            font-size: 14px;
+            color: var(--text-primary);
+            line-height: 1.5;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        .message.system .message-text {
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        .empty-chat {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-muted);
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .empty-chat svg {
+            width: 48px;
+            height: 48px;
+            stroke: var(--border);
+            margin-bottom: 12px;
+        }
+
+        /* ===== CHAT INPUT ===== */
+        .chat-input-area {
+            padding: 16px 20px;
+            background: var(--bg-tertiary);
+            border-top: 1px solid var(--border);
+        }
+
+        .input-wrapper {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .username-input {
+            width: 100%;
+            max-width: 120px;
+            padding: 10px 12px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .username-input:focus {
+            border-color: var(--yellow);
+            box-shadow: 0 0 0 3px var(--yellow-glow);
+        }
+
+        .username-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 10px 14px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-primary);
+            font-family: 'Rubik', sans-serif;
+            font-size: 14px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .message-input:focus {
+            border-color: var(--yellow);
+            box-shadow: 0 0 0 3px var(--yellow-glow);
+        }
+
+        .message-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .send-btn {
+            padding: 10px 20px;
+            background: var(--yellow);
+            border: none;
+            border-radius: 8px;
+            color: var(--bg-primary);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .send-btn:hover {
+            background: #ffe033;
+            box-shadow: 0 0 20px var(--yellow-glow);
+            transform: translateY(-1px);
+        }
+
+        .send-btn:active {
+            transform: translateY(0);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .chat-hint {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-align: center;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .chat-hint kbd {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-family: inherit;
+            font-size: 10px;
+            color: var(--yellow);
+            margin: 0 2px;
+        }
+
+        /* ===== FOOTER ===== */
+        .footer {
+            grid-area: footer;
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 20px;
+        }
+
+        .footer-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.2s ease;
+        }
+
+        .footer-links a:hover {
+            color: var(--yellow);
+        }
+
+        /* ===== RESPONSIVE ===== */
+        @media (max-width: 1024px) {
+            .app {
+                grid-template-columns: 1fr;
+                grid-template-areas:
+                    "header"
+                    "main"
+                    "chat"
+                    "footer";
+            }
+            
+            .chat {
+                border-left: none;
+                border-top: 1px solid var(--border);
+                max-height: 400px;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .header {
+                flex-direction: column;
+                gap: 12px;
+                text-align: center;
+            }
+            
+            .header-stats {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .main {
+                padding: 16px;
+            }
+            
+            .stream-header {
+                flex-direction: column;
+                gap: 8px;
+                align-items: flex-start;
+            }
+            
+            .input-wrapper {
+                flex-direction: column;
+            }
+            
+            .username-input {
+                max-width: none;
+            }
+            
+            .footer {
+                flex-direction: column;
+                gap: 8px;
+                text-align: center;
+            }
+        }
+
+        /* ===== LOADING STATES ===== */
+        .skeleton {
+            background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--bg-secondary) 50%, var(--bg-tertiary) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 4px;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <!-- HEADER -->
+        <header class="header">
+            <a href="/" class="logo">
+                <div class="logo-icon">NB</div>
+                <div class="logo-text">
+                    <span class="logo-title">Нейросеть Барбоскины</span>
+                    <span class="logo-subtitle">Бесконечная трансляция</span>
+                </div>
+            </a>
+            <div class="header-stats">
+                <div class="stat-item">
+                    <div class="stat-dot" id="streamStatusDot"></div>
+                    <div>
+                        <div class="stat-value" id="streamStatusText">Проверка...</div>
+                        <div class="stat-label">СТРИМ</div>
+                    </div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-dot online" id="chatStatusDot"></div>
+                    <div>
+                        <div class="stat-value" id="onlineCount">0</div>
+                        <div class="stat-label">В ЧАТЕ</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN -->
+        <main class="main">
+            <div class="stream-container">
+                <div class="stream-header">
+                    <div class="stream-title">ПРЯМОЙ ЭФИР</div>
+                    <div class="stream-status" id="streamStatus">
+                        <span class="status-text">Подключение к YouTube...</span>
+                    </div>
+                </div>
+                <div class="youtube-player" id="youtubePlayer">
+                    <!-- YouTube iframe будет вставлен сюда -->
+                    <div class="stream-overlay hidden" id="streamOverlay">
+                        <div class="overlay-icon" id="overlayIcon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="15" y1="9" x2="9" y2="15"></line>
+                                <line x1="9" y1="9" x2="15" y2="15"></line>
+                            </svg>
+                        </div>
+                        <div class="overlay-text">
+                            <div class="overlay-title">Ошибка загрузки</div>
+                            <div class="overlay-message" id="overlayMessage"></div>
+                        </div>
+                        <button class="retry-btn" id="retryBtn" onclick="retryStream()">Попробовать снова</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="topic-bar" id="topicBar">
+                <div class="topic-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                </div>
+                <div class="topic-content">
+                    <div class="topic-label">Текущая тема</div>
+                    <div class="topic-text" id="currentTopic">{{ current_topic }}</div>
+                </div>
+                <span class="topic-hint">/тема Ваша тема</span>
+            </div>
+
+            <!-- Инфо-панель (сворачиваемая) -->
+            <div class="info-panel" id="infoPanel">
+                <button class="info-panel-header" id="infoPanelHeader" type="button" aria-expanded="true" aria-controls="infoPanelContent">
+                    <span>Информация о стриме</span>
+                    <span class="info-panel-chevron" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                    </span>
+                </button>
+                <div class="info-panel-content" id="infoPanelContent">
+                    <div class="info-section">
+                        <div class="info-section-title">Поддержать проект</div>
+                        <a href="https://donatepay.ru/don/barboskinyai" target="_blank" rel="noopener" class="info-link">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                            </svg>
+                            DonatePay — https://donatepay.ru/don/barboskinyai
+                        </a>
+                    </div>
+
+                    <div class="info-section">
+                        <div class="info-section-title">Предложить тему</div>
+                        <div class="info-text">
+                            Напиши в чат команду: <strong>/тема Текст темы</strong><br>
+                            Пример: <code style="background: var(--bg-primary); padding: 2px 6px; border-radius: 4px; color: var(--yellow); font-family: 'JetBrains Mono', monospace; font-size: 11px;">/тема Дружок и Гена обсуждают пельмени</code>
+                        </div>
+                    </div>
+
+                    <div class="info-section">
+                        <div class="info-section-title">Ссылки</div>
+                        <div class="info-text">
+                            <a href="https://youtu.be/J46Cc7D-Wqg" target="_blank" rel="noopener" class="info-link">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M23 3a10.9 10.9 0 0 1-3.14 1.53 4.48 4.48 0 0 0-7.86 3v1A10.66 10.66 0 0 1 3 4s-4 9 5 13a11.64 11.64 0 0 1-7 2c9 5 20 0 20-11.5a4.5 4.5 0 0 0-.08-.83A7.72 7.72 0 0 0 23 3z"></path>
+                                </svg>
+                                YouTube канал
+                            </a>
+                            <br>
+                            <span style="color: var(--text-muted); font-size: 11px;">Telegram и Discord сервера пока нет — предложки только на YouTube и DonatePay</span>
+                        </div>
+                    </div>
+
+                    <div class="info-section">
+                        <div class="info-section-title">Важное замечание</div>
+                        <div class="disclaimer">
+                            <p><strong>Мы не ассоциируемся с CTB, студией «Мельница», и мультсериалом «Барбоскины», и не используем никакой контент, прямо находящийся под авторским правом.</strong> Наши трансляции входят под определение преобразующего контента, «fair use». Все голоса сгенерированы искусственным интеллектом и были собраны этично. Весь контент на нашей трансляции <strong>16+</strong>!!</p>
+                            <p>Данная трансляция создана с использованием технологий искусственного интеллекта (нейросетей) и не содержит реальных высказываний, изображений или голосов живых людей.</p>
+                            <p>Все тексты, персонажи, голоса являются результатом алгоритмической генерации. Контент носит исключительно развлекательный или художественный характер и не претендует на достоверность, политическую или иную оценку событий.</p>
+                            <p>Мнения, озвученные в видео, не отражают позицию реальных лиц, включая упомянутых публичных фигур.</p>
+                            <p>Автор не несет ответственности за субъективную интерпретацию контента.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- CHAT -->
+        <aside class="chat">
+            <div class="chat-header">
+                <div class="chat-title">ЧАТ</div>
+                <div class="chat-count" id="chatCount">0</div>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="empty-chat" id="emptyChat">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <p>Чат пуст</p>
+                    <p style="font-size: 12px; margin-top: 4px;">Будь первым, напиши сообщение!</p>
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <div class="input-wrapper">
+                    <input type="text" class="username-input" id="usernameInput" placeholder="Никнейм" maxlength="20" autocomplete="off">
+                    <input type="text" class="message-input" id="messageInput" placeholder="Сообщение..." maxlength="500" autocomplete="off">
+                    <button class="send-btn" id="sendBtn">Отправить</button>
+                </div>
+                <div class="chat-hint">
+                    Команды: <kbd>/тема</kbd> Текст — сменить тему стрима
+                </div>
+            </div>
+        </aside>
+
+        <!-- FOOTER -->
+        <footer class="footer">
+            <span>Нейросеть Барбоскины (Бесконечная трансляция) © 2026</span>
+            <div class="footer-links">
+                <a href="https://youtu.be/J46Cc7D-Wqg" target="_blank" rel="noopener">YouTube</a>
+                <a href="https://donatepay.ru/don/barboskinyai" target="_blank" rel="noopener">DonatePay</a>
+            </div>
+        </footer>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+        // ===== CONFIG =====
+        const YOUTUBE_VIDEO_ID = 'J46Cc7D-Wqg';
+        // mute=0 — звук включён
+        const YOUTUBE_EMBED_URL = `https://www.youtube.com/embed/${YOUTUBE_VIDEO_ID}?autoplay=1&mute=0&controls=1&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`;
+        
+        // ===== DOM ELEMENTS =====
+        const youtubePlayer = document.getElementById('youtubePlayer');
+        const streamOverlay = document.getElementById('streamOverlay');
+        const overlayIcon = document.getElementById('overlayIcon');
+        const overlayMessage = document.getElementById('overlayMessage');
+        const retryBtn = document.getElementById('retryBtn');
+        const streamStatus = document.getElementById('streamStatus');
+        const streamStatusText = document.getElementById('streamStatusText');
+        const streamStatusDot = document.getElementById('streamStatusDot');
+        const currentTopicEl = document.getElementById('currentTopic');
+        const chatMessages = document.getElementById('chatMessages');
+        const emptyChat = document.getElementById('emptyChat');
+        const chatCount = document.getElementById('chatCount');
+        const onlineCount = document.getElementById('onlineCount');
+        const usernameInput = document.getElementById('usernameInput');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        
+        // Info panel elements
+        const infoPanel = document.getElementById('infoPanel');
+        const infoPanelHeader = document.getElementById('infoPanelHeader');
+        const infoPanelContent = document.getElementById('infoPanelContent');
+
+        // ===== STATE =====
+        let socket = null;
+        let iframeLoaded = false;
+        let loadTimeout = null;
+        const STREAM_LOAD_TIMEOUT = 15000;
+
+        // ===== INIT =====
+        function init() {
+            initInfoPanel();
+            initSocket();
+            initYouTubePlayer();
+            initEventListeners();
+            restoreUsername();
+        }
+
+        // ===== INFO PANEL =====
+        function initInfoPanel() {
+            // Восстанавливаем состояние из localStorage
+            const savedState = localStorage.getItem('infoPanelCollapsed');
+            if (savedState === 'true') {
+                infoPanel.classList.add('collapsed');
+                infoPanelHeader.setAttribute('aria-expanded', 'false');
+            }
+
+            infoPanelHeader.addEventListener('click', toggleInfoPanel);
+        }
+
+        function toggleInfoPanel() {
+            const isCollapsed = infoPanel.classList.toggle('collapsed');
+            infoPanelHeader.setAttribute('aria-expanded', !isCollapsed);
+            localStorage.setItem('infoPanelCollapsed', isCollapsed);
+        }
+
+        // ===== SOCKET.IO =====
+        function initSocket() {
+            socket = io({ transports: ['websocket', 'polling'] });
+
+            socket.on('connect', () => {
+                console.log('✅ Connected to server');
+            });
+
+            socket.on('disconnect', () => {
+                console.log('❌ Disconnected from server');
+            });
+
+            socket.on('chat_history', (data) => {
+                data.messages.forEach(msg => appendMessage(msg));
+                updateEmptyState();
+            });
+
+            socket.on('new_message', (msg) => {
+                appendMessage(msg);
+                updateEmptyState();
+                scrollToBottom();
+            });
+
+            socket.on('online_count', (data) => {
+                chatCount.textContent = data.count;
+                onlineCount.textContent = data.count;
+            });
+
+            socket.on('topic_update', (data) => {
+                currentTopicEl.textContent = data.topic;
+            });
+        }
+
+        // ===== YOUTUBE PLAYER =====
+        function initYouTubePlayer() {
+            // Сразу создаём iframe — без показа загрузки
+            const iframe = document.createElement('iframe');
+            iframe.src = YOUTUBE_EMBED_URL;
+            iframe.allow = 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+            iframe.allowFullscreen = true;
+            iframe.title = 'Нейросеть Барбоскины - Прямой эфир';
+            iframe.loading = 'lazy';
+            
+            // Таймаут — если iframe не загрузился за 15 сек, показываем ошибку
+            loadTimeout = setTimeout(() => {
+                if (!iframeLoaded) {
+                    showErrorState();
+                }
+            }, STREAM_LOAD_TIMEOUT);
+
+            iframe.onload = () => {
+                clearTimeout(loadTimeout);
+                iframeLoaded = true;
+                setStreamStatus('live', '🔴 В ЭФИРЕ');
+            };
+
+            iframe.onerror = () => {
+                clearTimeout(loadTimeout);
+                showErrorState();
+            };
+
+            youtubePlayer.appendChild(iframe);
+        }
+
+        function showErrorState() {
+            streamOverlay.classList.remove('hidden');
+            overlayIcon.classList.remove('loading');
+            overlayIcon.innerHTML = `
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                </svg>
+            `;
+            overlayMessage.innerHTML = '<strong>Стрим не загрузился или возникли сбои</strong><br><span style="color: var(--text-muted); font-size: 13px; margin-top: 4px; display: block;">YouTube-плеер не отвечает. Попробуйте обновить страницу или нажать кнопку ниже.</span>';
+            retryBtn.style.display = 'inline-block';
+            setStreamStatus('error', '⚠ ОЖИДАНИЕ YOUTUBE');
+        }
+
+        function retryStream() {
+            const oldIframe = youtubePlayer.querySelector('iframe');
+            if (oldIframe) oldIframe.remove();
+            
+            iframeLoaded = false;
+            streamOverlay.classList.add('hidden');
+            retryBtn.style.display = 'none';
+            initYouTubePlayer();
+        }
+
+        function setStreamStatus(status, text) {
+            streamStatus.className = 'stream-status ' + status;
+            streamStatusText.textContent = text;
+            streamStatusDot.className = 'stat-dot ' + status;
+        }
+
+        // ===== CHAT =====
+        function appendMessage(msg) {
+            if (emptyChat.style.display !== 'none') {
+                emptyChat.style.display = 'none';
+            }
+
+            const div = document.createElement('div');
+            div.className = 'message' + (msg.is_system ? ' system' : '');
+            
+            const time = msg.timestamp || new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+            
+            div.innerHTML = `
+                <div class="message-header">
+                    <span class="message-username">${escapeHtml(msg.username)}</span>
+                    <span class="message-time">${time}</span>
+                </div>
+                <div class="message-text">${escapeHtml(msg.message)}</div>
+            `;
+            
+            chatMessages.appendChild(div);
+        }
+
+        function updateEmptyState() {
+            const hasMessages = chatMessages.querySelectorAll('.message').length > 0;
+            emptyChat.style.display = hasMessages ? 'none' : 'flex';
+        }
+
+        function scrollToBottom() {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function sendMessage() {
+            const username = usernameInput.value.trim() || 'Аноним';
+            const message = messageInput.value.trim();
+            
+            if (!message) return;
+            
+            localStorage.setItem('nb_username', username);
+            
+            socket.emit('send_message', { username, message });
+            messageInput.value = '';
+            messageInput.focus();
+        }
+
+        function restoreUsername() {
+            const saved = localStorage.getItem('nb_username');
+            if (saved) usernameInput.value = saved;
+        }
+
+        // ===== EVENT LISTENERS =====
+        function initEventListeners() {
+            sendBtn.addEventListener('click', sendMessage);
+            
+            messageInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+
+            usernameInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    messageInput.focus();
+                }
+            });
+
+            chatMessages.addEventListener('click', () => {
+                messageInput.focus();
+            });
+        }
+
+        // ===== UTILS =====
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ===== START =====
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
